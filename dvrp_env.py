@@ -11,33 +11,34 @@ from torch.distributions import Categorical
 # -------------------------
 # MultiDVRPEnv
 # -------------------------
+
+# -------------------------
+# MultiDVRPEnv with reward shaping and success tracking
+# -------------------------
 @dataclass
 class Order:
     loc: Tuple[int, int]
-    status: int  # 0 inactive, 1 available, 2 accepted/in-process
-    elapsed: int  # elapsed time since generation
-    reward: float  # v_i
-    tw: int  # time window (deadline)
-    gen_time: int = 0  # absolute time when generated
+    status: int         # 0 inactive, 1 available, 2 accepted/in-process
+    elapsed: int        # elapsed time since generation
+    reward: float       # v_i
+    tw: int             # time window (deadline)
+    gen_time: int = 0   # absolute time when generated
     accepted_by: Optional[int] = None  # agent id who accepted (for bookkeeping)
-
 
 class MultiDVRPEnv:
     def __init__(self,
                  n_agents: int = 3,
                  grid_size: int = 10,
-                 N_max: int = 10, #Maximum order coexist
-                 C: int = 10, #Maximum capacity
-                 T: int = 480, #Episode length
+                 N_max: int = 10,
+                 C: int = 10,
+                 T: int = 480,
                  depot_loc: Optional[Tuple[int, int]] = None,
-                 p_arrival: float = 0.25, #probs of new order appear
-
+                 p_arrival: float = 0.25,
                  zone_probs: Optional[List[float]] = None,
                  zone_reward_ranges: Optional[List[Tuple[float, float]]] = None,
-
-                 alpha: float = 1 / 3,
+                 alpha: float = 1/3,
                  penalty_f: float = 50.0,
-                 tw: int = 60, #time until each order expired
+                 tw: int = 60,
                  m: float = 0.1,
                  seed: Optional[int] = None):
         self.M = n_agents
@@ -66,7 +67,7 @@ class MultiDVRPEnv:
             assert len(zone_reward_ranges) == 4
             self.zone_reward_ranges = zone_reward_ranges
 
-        # Initializing zone
+        # Zone x-ranges
         n = self.grid_size
         n1 = int(math.floor(0.30 * n))
         n2 = int(math.floor(0.30 * n))
@@ -80,16 +81,16 @@ class MultiDVRPEnv:
         x1 = x0 + n1 - 1
         x2 = x1 + n2
         x3 = x2 + n3
-        x1 = min(x1, n - 1)
-        x2 = min(x2, n - 1)
-        x3 = min(x3, n - 1)
-        self.zone_x_ranges = [(0, x1), (x1 + 1, x2), (x2 + 1, x3), (x3 + 1, n - 1)]
+        x1 = min(x1, n-1)
+        x2 = min(x2, n-1)
+        x3 = min(x3, n-1)
+        self.zone_x_ranges = [(0, x1), (x1 + 1, x2), (x2 + 1, x3), (x3 + 1, n-1)]
         for i in range(4):
             a, b = self.zone_x_ranges[i]
-            a = max(0, min(a, n - 1))
-            b = max(0, min(b, n - 1))
+            a = max(0, min(a, n-1))
+            b = max(0, min(b, n-1))
             if a > b:
-                a, b = 0, n - 1
+                a, b = 0, n-1
             self.zone_x_ranges[i] = (a, b)
 
         self.alpha = alpha
@@ -110,18 +111,14 @@ class MultiDVRPEnv:
         self.penalty = [0.0 for _ in range(self.M)]
         self.avg_cost = [0.0 for _ in range(self.M)]
         self.dist_travel = [0.0 for _ in range(self.M)]
-
-
-
-        # Add immediate reward tracking for obs
+        self.reward = [0.0 for _ in range(self.M)]
+        # Add immediate reward tracking
         self.immediate_rewards = [0.0 for _ in range(self.M)]
-
-
-        # Define immediate reward normalization bounds
+        # Define reward normalization bounds
         max_order_reward = max(b for _, b in self.zone_reward_ranges)
         self.max_reward = max_order_reward  # Max reward from accept + deliver
-        self.min_reward = -self.penalty_f - (
-                    self.m_time + self.m_dist * 2 * (self.grid_size - 1))  # Min reward: penalty + max move cost
+        self.min_reward = -self.penalty_f - (self.m_time + self.m_dist * 2 * (self.grid_size - 1))  # Min reward: penalty + max move cost
+
 
         self.reset()
 
@@ -145,7 +142,7 @@ class MultiDVRPEnv:
         self.penalty = [0.0 for _ in range(self.M)]
         self.avg_cost = [0.0 for _ in range(self.M)]
         self.dist_travel = [0.0 for _ in range(self.M)]
-
+        self.reward = [0.0 for _ in range(self.M)]
         self.immediate_rewards = [0.0 for _ in range(self.M)]  # Reset immediate rewards
 
         return {i: self._get_obs_for_agent(i) for i in range(self.M)}
@@ -153,7 +150,6 @@ class MultiDVRPEnv:
     def _manhattan_distance(self, loc1: Tuple[int, int], loc2: Tuple[int, int]) -> int:
         return abs(loc1[0] - loc2[0]) + abs(loc1[1] - loc2[1])
 
-    #Get observation and normalizing
     def _get_obs_for_agent(self, agent_id: int) -> Dict[str, Any]:
         driver_loc = self.driver_locs[agent_id]
         max_dist = 2 * (self.grid_size - 1) if self.grid_size > 1 else 1
@@ -181,8 +177,7 @@ class MultiDVRPEnv:
             order_statuses.append(status)
             order_rewards.append(reward)
 
-        my_accepted_idx = next(
-            (i for i, o in enumerate(self.orders) if o and o.status == 2 and o.accepted_by == agent_id), -1)
+        my_accepted_idx = next((i for i, o in enumerate(self.orders) if o and o.status == 2 and o.accepted_by == agent_id), -1)
         my_accepted_dist = order_dists[my_accepted_idx] if my_accepted_idx != -1 else 0.0
         my_accepted_remaining_tw = order_remaining_tws[my_accepted_idx] if my_accepted_idx != -1 else 0.0
 
@@ -191,11 +186,7 @@ class MultiDVRPEnv:
 
         available_count = sum(1 for o in self.orders if o and o.status == 1) / self.N if self.N > 0 else 0.0
 
-        # Normalize immediate reward to [0,1]
-        imm_reward = self.immediate_rewards[agent_id]
-        reward_range = self.max_reward - self.min_reward
-        normalized_imm_reward = (imm_reward - self.min_reward) / reward_range if reward_range > 0 else 0.0
-        normalized_imm_reward = max(0.0, min(1.0, normalized_imm_reward))  # Clamp to [0,1]
+        dist_travel_norm=self.dist_travel[agent_id]/(self.t+1) if self.t else 0
 
         obs = {
             't_normalized': self.t / self.T if self.T > 0 else 0.0,
@@ -209,7 +200,7 @@ class MultiDVRPEnv:
             'capacity': self.capacities[agent_id] / self.C_max if self.C_max > 0 else 0.0,
             'other_dists': other_dists,
             'available_count': available_count,
-            'immediate_reward': normalized_imm_reward  # Add normalized immediate reward
+            'dist_travel_norm': dist_travel_norm,
         }
         return obs
 
@@ -229,7 +220,7 @@ class MultiDVRPEnv:
         v = float(self.rng.uniform(a, b))
 
         # Time window = min(self.tw, remaining time to horizon)
-        remaining_time = max(0, self.T - 1 - self.t)  # Time left until horizon
+        remaining_time = max(0, self.T-1- self.t)  # Time left until horizon
         effective_tw = min(self.tw, remaining_time)
 
         return Order(
@@ -244,8 +235,15 @@ class MultiDVRPEnv:
     def _manhattan_step_towards(self, src: Tuple[int, int], dst: Tuple[int, int]) -> Tuple[int, int]:
         sx, sy = src
         dx, dy = dst
-        nx = sx + (1 if dx > sx else (-1 if dx < sx else 0))
-        ny = sy + (1 if dy > sy else (-1 if dy < sy else 0))
+        # Move in only ONE direction per step (prioritize x, then y)
+        if dx != sx:
+            nx = sx + (1 if dx > sx else -1)
+            ny = sy
+        elif dy != sy:
+            nx = sx
+            ny = sy + (1 if dy > sy else -1)
+        else:
+            nx, ny = sx, sy
         nx = min(max(0, nx), self.grid_size - 1)
         ny = min(max(0, ny), self.grid_size - 1)
         return (nx, ny)
@@ -288,13 +286,11 @@ class MultiDVRPEnv:
             for agent_id in range(self.M):
                 act = actions.get(agent_id, 2)
                 if act is None or act < 0 or act >= (self.N + 4):
-                    infos[agent_id].setdefault('forced_action_due_to_out_of_range', []).append(
-                        {'original': act, 'forced': 2})
+                    infos[agent_id].setdefault('forced_action_due_to_out_of_range', []).append({'original': act, 'forced': 2})
                     act = 2
                     actions[agent_id] = act
                 if masks[agent_id][act] == 0:
-                    infos[agent_id].setdefault('forced_action_due_to_invalid_choice', []).append(
-                        {'original': act, 'forced': 2})
+                    infos[agent_id].setdefault('forced_action_due_to_invalid_choice', []).append({'original': act, 'forced': 2})
                     act = 2
                     actions[agent_id] = act
                 if act == 0 and self.capacities[agent_id] >= 1:
@@ -302,8 +298,14 @@ class MultiDVRPEnv:
                 elif act == 1:
                     infos[agent_id].setdefault('rejected_orders', []).append(newest_idx)
             if accept_requests:
-                chosen_agent = self.rng.choice(accept_requests)
+                chosen_agent=-1
+                min_dist=float('inf')
                 order = self.orders[newest_idx]
+                for vid in accept_requests:
+                    if (min_dist>self._manhattan_distance(self.driver_locs[vid],order.loc)):
+                        chosen_agent=vid
+                        min_dist=self._manhattan_distance(self.driver_locs[vid],order.loc)
+
                 order.status = 2
                 order.accepted_by = chosen_agent
                 self.capacities[chosen_agent] -= 1
@@ -311,9 +313,6 @@ class MultiDVRPEnv:
                 self.acp_component[chosen_agent] += self.alpha * order.reward
                 infos[chosen_agent].setdefault('accepted_orders', []).append(newest_idx)
                 self.accepted_count += 1
-            # elif any(actions.get(aid, 2) == 1 for aid in range(self.M)):
-            #     self.orders[newest_idx].status = 0
-            # Inappropriate logic, indicate that order which has been rejected is no longer active (paper 2024)
 
         # Phase 2: Routing
         new_locs = self.driver_locs.copy()
@@ -321,13 +320,11 @@ class MultiDVRPEnv:
         for agent_id in range(self.M):
             act = actions.get(agent_id, 2)
             if act is None or act < 0 or act >= (self.N + 4):
-                infos[agent_id].setdefault('forced_action_due_to_out_of_range', []).append(
-                    {'original': act, 'forced': 2})
+                infos[agent_id].setdefault('forced_action_due_to_out_of_range', []).append({'original': act, 'forced': 2})
                 act = 2
                 actions[agent_id] = act
             if masks[agent_id][act] == 0:
-                infos[agent_id].setdefault('forced_action_due_to_invalid_choice', []).append(
-                    {'original': act, 'forced': 2})
+                infos[agent_id].setdefault('forced_action_due_to_invalid_choice', []).append({'original': act, 'forced': 2})
                 act = 2
                 actions[agent_id] = act
 
@@ -423,7 +420,7 @@ class MultiDVRPEnv:
         # Update immediate rewards again to include expiration penalties
         for agent_id in range(self.M):
             self.immediate_rewards[agent_id] = rewards[agent_id]
-
+            self.reward[agent_id]+=self.immediate_rewards[agent_id]
         for i in range(self.M):
             self.total_rewards_per_agent[i] += rewards[i]
             self.last_info[i] = infos[i]

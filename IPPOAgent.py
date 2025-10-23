@@ -23,9 +23,9 @@ def flatten_observation(obs: Dict[str, Any]) -> np.ndarray:
     vec.append(float(obs['available_count']))
     vec.append(float(obs['my_accepted_dist']))
     vec.append(float(obs['my_accepted_remaining_tw']))
-    vec.append(float(obs['immediate_reward']))  # Add normalized immediate reward
+    vec.append(float(obs['dist_travel_norm']))
     for dist, st, rem_tw, rv in zip(obs['order_dists'], obs['order_statuses'],
-                                    obs['order_remaining_tws'], obs['order_rewards']):
+                                   obs['order_remaining_tws'], obs['order_rewards']):
         vec.append(float(dist))
         vec.append(float(st))
         vec.append(float(rem_tw))
@@ -33,7 +33,6 @@ def flatten_observation(obs: Dict[str, Any]) -> np.ndarray:
     for dist in obs['other_dists']:
         vec.append(float(dist))
     return np.array(vec, dtype=np.float32)
-
 
 class PolicyNet(nn.Module):
     def __init__(self, input_dim: int, action_dim: int, hidden: int = 256):
