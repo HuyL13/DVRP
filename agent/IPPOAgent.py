@@ -1,12 +1,5 @@
 import math
-from typing import List, Dict, Any, NamedTuple
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.distributions import Categorical
-import math
-from typing import List, Dict, Any, NamedTuple
+from typing import List, Dict, Any
 
 import numpy as np
 import torch
@@ -14,6 +7,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
 
+from agent.PNet import PolicyNet
+from agent.VNet import ValueNet
+from agent.Transition import Transition
 
 def flatten_observation(obs: Dict[str, Any]) -> np.ndarray:
     vec = []
@@ -34,39 +30,6 @@ def flatten_observation(obs: Dict[str, Any]) -> np.ndarray:
         vec.append(float(dist))
     return np.array(vec, dtype=np.float32)
 
-class PolicyNet(nn.Module):
-    def __init__(self, input_dim: int, action_dim: int, hidden: int = 256):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden), nn.ReLU(),
-            nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, action_dim)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class ValueNet(nn.Module):
-    def __init__(self, input_dim: int, hidden: int = 256):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden), nn.ReLU(),
-            nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, 1)
-        )
-
-    def forward(self, x):
-        return self.net(x).squeeze(-1)
-
-
-class Transition(NamedTuple):
-    obs: np.ndarray
-    action: int
-    logp: float
-    reward: float
-    done: float
-    value: float
 
 
 class IPPOAgent:

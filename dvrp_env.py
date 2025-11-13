@@ -4,17 +4,13 @@ from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any, Optional
 
 import numpy as np
-import torch
-from torch.distributions import Categorical
 
 
 # -------------------------
-# MultiDVRPEnv
+# Environment for multi agents performing Dynamic Vehicle Routing Task
+# with reward shaping and success tracking
 # -------------------------
 
-# -------------------------
-# MultiDVRPEnv with reward shaping and success tracking
-# -------------------------
 @dataclass
 class Order:
     loc: Tuple[int, int]
@@ -112,9 +108,7 @@ class MultiDVRPEnv:
         self.avg_cost = [0.0 for _ in range(self.M)]
         self.dist_travel = [0.0 for _ in range(self.M)]
         self.reward = [0.0 for _ in range(self.M)]
-        # Add immediate reward tracking
         self.immediate_rewards = [0.0 for _ in range(self.M)]
-        # Define reward normalization bounds
         max_order_reward = max(b for _, b in self.zone_reward_ranges)
         self.max_reward = max_order_reward  # Max reward from accept + deliver
         self.min_reward = -self.penalty_f - (self.m_time + self.m_dist * 2 * (self.grid_size - 1))  # Min reward: penalty + max move cost
@@ -143,7 +137,7 @@ class MultiDVRPEnv:
         self.avg_cost = [0.0 for _ in range(self.M)]
         self.dist_travel = [0.0 for _ in range(self.M)]
         self.reward = [0.0 for _ in range(self.M)]
-        self.immediate_rewards = [0.0 for _ in range(self.M)]  # Reset immediate rewards
+        self.immediate_rewards = [0.0 for _ in range(self.M)]
 
         return {i: self._get_obs_for_agent(i) for i in range(self.M)}
 

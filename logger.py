@@ -2,26 +2,22 @@
 # Logger Class
 # -------------------------
 
-import os
-import random
-import math
-import time
 import csv
-from dataclasses import dataclass
-from typing import List, Tuple, Dict, Any, Optional, NamedTuple
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.distributions import Categorical
+import os
+import time
+from typing import Dict, Any
+
 from dvrp_env import MultiDVRPEnv
-# Try to import tensorboard, make it optional for Kaggle
+
+
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_AVAILABLE = True
 except ImportError:
     TENSORBOARD_AVAILABLE = False
     print("TensorBoard not available. Logging will use CSV only.")
+
+
 
 class IPPOLogger:
     def __init__(self, agent_id: int, log_dir: str = "logs", use_tensorboard: bool = True):
